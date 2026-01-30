@@ -1,0 +1,56 @@
+name: doecerto
+
+services:
+  mysql:
+    image: mysql:8
+    restart: always
+    env_file:
+      - .env
+      - .env.mysql
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks: 
+      - backend
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+  redis:
+    image: redis:7
+    restart: always
+    command: redis-server --save 60 1000 --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+  api:
+    image: guilhermemth/doecerto-api:latest
+    restart: always
+    env_file:
+      - .env
+      - .env.api
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks: 
+      - backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_profiles:/app/uploads/profiles
+      - uploads_payments:/app/uploads/payment-proofs
+      - api_logs:/app/logs
+      
+networks:
+  backend:
+
+volumes:
+  mysql_data:
+  redis_data:
+  uploads_profiles:
+  uploads_payments:
+  api_logs:
