@@ -40,10 +40,23 @@ services:
       - backend
     ports:
       - "3000:3000"
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
     volumes:
       - uploads_profiles:/app/uploads/profiles
       - uploads_payments:/app/uploads/payment-proofs
       - api_logs:/app/logs
+  watchtower:
+    image: containrrr/watchtower:latest
+    restart: always
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: > 
+      --interval 30
+      --cleanup
+      --label-enable
       
 networks:
   backend:
