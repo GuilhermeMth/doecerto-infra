@@ -28,7 +28,7 @@ services:
       - redis_data:/data
 
   api:
-    image: guilhermemth/doecerto-api:latest
+    image: guilhermemth/doecerto-api:sistemas-distribuidos
     restart: always
     env_file:
       - .env
