@@ -1,18 +1,19 @@
-# O Caddy usa a variável de ambiente definida no docker-compose
-# Ex: https://doecerto.brazilsouth.cloudapp.azure.com
-{$MY_DOMAIN} {
+doecerto.eastus2.cloudapp.azure.com {
 
-    # Roteamento para o Frontend (Next.js/React)
-    # Assume que o container do frontend ouve na porta 3000
-    reverse_proxy frontend:3535
-
-    # Roteamento para o Backend (NestJS)
-    # Redireciona tudo que começa com /api para o container 'api' na porta 3501
+    # 1. Roteamento para o Backend (NestJS)
+    # Importante: O Caddy avalia por ordem ou especificidade. 
+    # handle_path garante que o prefixo /api seja removido antes de chegar na API
     handle_path /api/* {
         reverse_proxy api:3501
     }
 
-    # Configurações de Performance e Segurança
+    # 2. Roteamento para o Frontend (Porta 3535)
+    # O 'handle' sem path serve como um "catch-all" para o restante das rotas
+    handle {
+        reverse_proxy frontend:3535
+    }
+
+    # --- Configurações de Performance e Segurança ---
     encode zstd gzip
     
     header {
@@ -24,7 +25,7 @@
         X-Content-Type-Options "nosniff"
     }
 
-    # Logs de acesso para monitoramento
+    # Logs de acesso para monitoramento (essencial para debugar na mão)
     log {
         output file /data/access.log
     }
