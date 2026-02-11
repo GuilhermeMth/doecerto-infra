@@ -35,7 +35,9 @@ services:
     image: guilhermemth/doecerto-api:latest
     container_name: doecerto_api
     restart: always
-    user: root  # Essencial para ter permissão de criar a pasta generated
+    user: root
+    # Usando uma string simples para o command para evitar erros de parsing do YAML
+    command: sh -c "npx prisma generate && node dist/main"
     env_file:
       - .env
       - api.env
@@ -44,9 +46,6 @@ services:
       - DB_HOST=db
       - REDIS_HOST=redis
       - DATABASE_URL=mysql://${DB_USER}:${DB_PASSWORD}@db:3306/${DB_NAME}
-    # O PULO DO GATO: Gera o prisma ANTES de iniciar o servidor
-    command: >
-      sh -c "npx prisma generate && node dist/main"
     depends_on:
       db:
         condition: service_healthy
@@ -58,7 +57,6 @@ services:
       - uploads_profiles:/app/uploads/profiles
       - uploads_payments:/app/uploads/payment-proofs
       - api_logs:/app/logs
-      # Remova ou comente as linhas do entrypoint.sh se elas ainda estiverem lá
 
   frontend:
     image: guilhermemth/doecerto-front:latest
