@@ -8,6 +8,9 @@ jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
+    # Precisamos capturar o IP para passar para o próximo job
+    outputs:
+      vm_ip: ${{ steps.set-ip.outputs.VM_IP }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,11 +23,20 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Apply
+      - name: Terraform Init e Apply
         run: |
           cd terraform
           terraform init
-          terraform apply -auto-approve
+          # Passamos a chave pública via variável para corrigir o erro da linha 119
+          terraform apply -auto-approve -var="ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}"
+
+      - name: Get VM IP
+        id: set-ip
+        run: |
+          cd terraform
+          # Extrai o IP do output do terraform e salva no output do GitHub Actions
+          VM_IP=$(terraform output -raw public_ip)
+          echo "VM_IP=$VM_IP" >> $GITHUB_OUTPUT
 
   deploy-docker:
     needs: terraform
@@ -36,7 +48,8 @@ jobs:
       - name: Copy files to VM
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VM_IP }}
+          # Aqui ele usa o IP que acabou de ser criado pelo Terraform
+          host: ${{ needs.terraform.outputs.vm_ip }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "./docker-compose.yml,./docker,./.env"
@@ -45,10 +58,11 @@ jobs:
       - name: Executing Docker Compose
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VM_IP }}
+          host: ${{ needs.terraform.outputs.vm_ip }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /home/${{ secrets.VM_USER }}/app
+            # Garantir que o docker-compose exista e as permissões estejam ok
             docker compose pull
             docker compose up -d

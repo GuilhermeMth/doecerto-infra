@@ -27,3 +27,8 @@ variable "admin_username" {
   description = "Usuário administrador para acesso SSH"
   default     = "azureuser"
 }
+
+variable "ssh_public_key" {
+  type        = string
+  description = "Conteúdo da chave pública SSH"
+}
