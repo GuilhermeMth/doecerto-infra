@@ -33,11 +33,13 @@ resource "azurerm_subnet" "subnet" {
 }
 
 # 3. IP Público com DNS Label para o Caddy (HTTPS Automático)
+# 3. IP Público com SKU Standard para evitar erro de cota
 resource "azurerm_public_ip" "pip" {
   name                = "pip-doecerto"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Static"
+  sku                 = "Standard"  # <--- MUDANÇA AQUI
   domain_name_label   = var.dns_label
 }
 

@@ -33,7 +33,6 @@ jobs:
         id: set-ip
         run: |
           cd terraform
-          # Captura o IP e o FQDN (DNS da Azure) para usar no deploy
           echo "VM_IP=$(terraform output -raw public_ip)" >> $GITHUB_OUTPUT
           echo "VM_FQDN=$(terraform output -raw backend_url_variable)" >> $GITHUB_OUTPUT
 
@@ -46,13 +45,28 @@ jobs:
 
       - name: Create .env file
         run: |
-          # 1. Cria o arquivo com o que você colou no Secret DOT_ENV
           echo "${{ secrets.DOT_ENV }}" > .env
-          
-          # 2. (Opcional) Sobrescreve ou adiciona o domínio dinâmico da Azure
-          # Isso garante que o MY_DOMAIN do Caddy esteja sempre certo
           echo "MY_DOMAIN=${{ needs.terraform.outputs.vm_fqdn }}" >> .env
           echo "VM_IP=${{ needs.terraform.outputs.vm_ip }}" >> .env
+
+      - name: Wait for Docker to be ready
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ needs.terraform.outputs.vm_ip }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "Aguardando instalação do Docker..."
+            for i in {1..30}; do
+              if docker info > /dev/null 2>&1; then
+                echo "Docker está pronto!"
+                exit 0
+              fi
+              echo "Tentativa $i: Docker ainda não responde. Aguardando 10s..."
+              sleep 10
+            done
+            echo "Erro: Docker não ficou pronto a tempo."
+            exit 1
 
       - name: Copy files to VM
         uses: appleboy/scp-action@v0.1.7
@@ -60,7 +74,6 @@ jobs:
           host: ${{ needs.terraform.outputs.vm_ip }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # O arquivo .env criado acima será copiado agora
           source: "./docker-compose.yml,./docker,./.env,./Caddyfile"
           target: "/home/${{ secrets.VM_USER }}/app"
 
@@ -72,6 +85,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /home/${{ secrets.VM_USER }}/app
-            # Força o Docker a ler o novo .env e subir os containers
+            # Usando docker compose (V2) conforme instalado no seu custom_data
             docker compose pull
             docker compose up -d --remove-orphans
