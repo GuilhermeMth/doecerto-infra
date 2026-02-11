@@ -4,7 +4,7 @@
 
     # Roteamento para o Frontend (Next.js/React)
     # Assume que o container do frontend ouve na porta 3000
-    reverse_proxy frontend:3000
+    reverse_proxy frontend:3535
 
     # Roteamento para o Backend (NestJS)
     # Redireciona tudo que começa com /api para o container 'api' na porta 3501
