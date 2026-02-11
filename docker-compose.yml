@@ -77,7 +77,7 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      - MY_DOMAIN=${BACKEND_URL} # Puxa do .env (será o DNS da Azure)
+      - MY_DOMAIN=${MY_DOMAIN}
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data

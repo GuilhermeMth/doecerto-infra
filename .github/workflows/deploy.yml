@@ -8,9 +8,9 @@ jobs:
   terraform:
     name: 'Terraform'
     runs-on: ubuntu-latest
-    # Precisamos capturar o IP para passar para o próximo job
     outputs:
       vm_ip: ${{ steps.set-ip.outputs.VM_IP }}
+      vm_fqdn: ${{ steps.set-ip.outputs.VM_FQDN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,16 +27,15 @@ jobs:
         run: |
           cd terraform
           terraform init
-          # Passamos a chave pública via variável para corrigir o erro da linha 119
           terraform apply -auto-approve -var="ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}"
 
-      - name: Get VM IP
+      - name: Get VM Outputs
         id: set-ip
         run: |
           cd terraform
-          # Extrai o IP do output do terraform e salva no output do GitHub Actions
-          VM_IP=$(terraform output -raw public_ip)
-          echo "VM_IP=$VM_IP" >> $GITHUB_OUTPUT
+          # Captura o IP e o FQDN (DNS da Azure) para usar no deploy
+          echo "VM_IP=$(terraform output -raw public_ip)" >> $GITHUB_OUTPUT
+          echo "VM_FQDN=$(terraform output -raw backend_url_variable)" >> $GITHUB_OUTPUT
 
   deploy-docker:
     needs: terraform
@@ -45,14 +44,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create .env file
+        run: |
+          # 1. Cria o arquivo com o que você colou no Secret DOT_ENV
+          echo "${{ secrets.DOT_ENV }}" > .env
+          
+          # 2. (Opcional) Sobrescreve ou adiciona o domínio dinâmico da Azure
+          # Isso garante que o MY_DOMAIN do Caddy esteja sempre certo
+          echo "MY_DOMAIN=${{ needs.terraform.outputs.vm_fqdn }}" >> .env
+          echo "VM_IP=${{ needs.terraform.outputs.vm_ip }}" >> .env
+
       - name: Copy files to VM
         uses: appleboy/scp-action@v0.1.7
         with:
-          # Aqui ele usa o IP que acabou de ser criado pelo Terraform
           host: ${{ needs.terraform.outputs.vm_ip }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "./docker-compose.yml,./docker,./.env"
+          # O arquivo .env criado acima será copiado agora
+          source: "./docker-compose.yml,./docker,./.env,./Caddyfile"
           target: "/home/${{ secrets.VM_USER }}/app"
 
       - name: Executing Docker Compose
@@ -63,6 +72,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /home/${{ secrets.VM_USER }}/app
-            # Garantir que o docker-compose exista e as permissões estejam ok
+            # Força o Docker a ler o novo .env e subir os containers
             docker compose pull
-            docker compose up -d
+            docker compose up -d --remove-orphans
