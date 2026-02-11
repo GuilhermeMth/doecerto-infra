@@ -35,26 +35,30 @@ services:
     image: guilhermemth/doecerto-api:latest
     container_name: doecerto_api
     restart: always
-    user: root  # Adicione isso para evitar o erro EACCES
-    env_file: .env
+    user: root  # Essencial para ter permissão de criar a pasta generated
+    env_file:
+      - .env
+      - api.env
     environment:
       - PORT=3501
       - DB_HOST=db
       - REDIS_HOST=redis
-    # Adicione o comando abaixo para gerar o prisma toda vez que o container subir
-    command: sh -c "npx prisma generate && node dist/main"
+      - DATABASE_URL=mysql://${DB_USER}:${DB_PASSWORD}@db:3306/${DB_NAME}
+    # O PULO DO GATO: Gera o prisma ANTES de iniciar o servidor
+    command: >
+      sh -c "npx prisma generate && node dist/main"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks: 
       - doecerto_network
-    # ... resto das configurações (volumes, etc)
     volumes:
       - uploads_profiles:/app/uploads/profiles
       - uploads_payments:/app/uploads/payment-proofs
       - api_logs:/app/logs
-      - ./entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
+      # Remova ou comente as linhas do entrypoint.sh se elas ainda estiverem lá
 
   frontend:
     image: guilhermemth/doecerto-front:latest
