@@ -37,7 +37,8 @@ services:
     restart: always
     user: root
     # Usando uma string simples para o command para evitar erros de parsing do YAML
-    command: sh -c "npx prisma generate && node dist/main"
+    command: >
+      sh -c "npx prisma migrate deploy && npx prisma generate && node dist/main"
     env_file:
       - .env
       - api.env
