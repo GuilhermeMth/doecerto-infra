@@ -1,3 +1,7 @@
+{
+    email guilhermemfranca06@gmail.com
+}
+
 doecerto.eastus2.cloudapp.azure.com {
     handle_path /api/* {
         reverse_proxy doecerto_api:3501
@@ -5,9 +9,5 @@ doecerto.eastus2.cloudapp.azure.com {
 
     handle {
         reverse_proxy doecerto_frontend:3535
-    }
-
-    log {
-        output file /data/caddy_error.log
     }
 }
