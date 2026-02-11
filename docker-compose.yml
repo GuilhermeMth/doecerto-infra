@@ -1,15 +1,19 @@
 name: doecerto
 
 services:
-  # --- BANCO DE DADOS ---
+  # --- BANCO DE DADOS (MYSQL) ---
   db:
     image: mysql:8
     container_name: doecerto_db
     restart: always
+    env_file:
+      - .env
+      - db.env
     environment:
+      # Regra de Ouro: root não pode ser definido em MYSQL_USER
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
+      MYSQL_USER: ${DB_USER} # Use um nome como 'doecerto_user' no .env
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
@@ -22,7 +26,7 @@ services:
       retries: 10
       start_period: 30s
 
-  # --- CACHE ---
+  # --- CACHE (REDIS) ---
   redis:
     image: redis:7-alpine
     container_name: doecerto_redis
@@ -33,13 +37,16 @@ services:
     volumes:
       - redis_data:/data
 
-  # --- BACKEND ---
+  # --- BACKEND (NESTJS) ---
   api:
     image: guilhermemth/doecerto-api:latest
     container_name: doecerto_api
     restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true" # Habilita o auto-update
     env_file:
       - .env
+      - api.env
     environment:
       - PORT=3501
       - DB_HOST=db
@@ -59,19 +66,24 @@ services:
       - ./docker/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
 
-  # --- FRONTEND ---
+  # --- FRONTEND (REACT/NEXT) ---
   frontend:
     image: guilhermemth/doecerto-front:latest
     container_name: doecerto_frontend
     restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true" # Habilita o auto-update
     env_file:
       - .env
+    # Porta interna que o Caddy vai buscar
+    expose:
+      - "3535"
     depends_on:
       - api
     networks:
       - doecerto_network
 
-  # --- PROXY REVERSO ---
+  # --- PROXY REVERSO (CADDY) ---
   caddy:
     image: caddy:2-alpine
     container_name: doecerto_proxy
@@ -91,15 +103,16 @@ services:
       - frontend
       - api
 
-  # --- AUTO UPDATE ---
+  # --- AUTO UPDATE (WATCHTOWER) ---
   watchtower:
     image: containrrr/watchtower:latest
     container_name: doecerto_watchtower
     restart: always
     environment:
-      - DOCKER_API_VERSION=1.44
+      - DOCKER_API_VERSION=1.44 # Se der erro de socket, mude para 1.41
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    # --label-enable garante que ele só atualize API e Frontend
     command: --interval 30 --cleanup --label-enable
     networks:
       - doecerto_network
