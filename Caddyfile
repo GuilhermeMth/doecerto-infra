@@ -1,14 +1,13 @@
 doecerto.eastus2.cloudapp.azure.com {
 
     # 1. Roteamento para o Backend (NestJS)
-    # Importante: O Caddy avalia por ordem ou especificidade. 
-    # handle_path garante que o prefixo /api seja removido antes de chegar na API
+    # Remove o prefixo /api e joga para o container na 3501
     handle_path /api/* {
         reverse_proxy api:3501
     }
 
-    # 2. Roteamento para o Frontend (Porta 3535)
-    # O 'handle' sem path serve como um "catch-all" para o restante das rotas
+    # 2. Roteamento para o Frontend
+    # Joga todo o resto para o container na 3535
     handle {
         reverse_proxy frontend:3535
     }
@@ -17,15 +16,16 @@ doecerto.eastus2.cloudapp.azure.com {
     encode zstd gzip
     
     header {
-        # Habilita HSTS (Segurança Estrita de Transporte)
+        # Habilita HSTS
         Strict-Transport-Security "max-age=31536000;"
-        # Proteção contra Clickjacking
+        # Proteção contra Clickjacking e Sniffing
         X-Frame-Options "DENY"
-        # Previne MIME sniffing
         X-Content-Type-Options "nosniff"
+        # Garante que o navegador saiba que o conteúdo é estritamente HTTPS
+        Content-Security-Policy "upgrade-insecure-requests"
     }
 
-    # Logs de acesso para monitoramento (essencial para debugar na mão)
+    # Logs de acesso (importante para ver quem está acessando na VM)
     log {
         output file /data/access.log
     }

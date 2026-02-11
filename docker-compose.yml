@@ -1,19 +1,15 @@
 name: doecerto
 
 services:
-  # --- BANCO DE DADOS (MYSQL) ---
   db:
     image: mysql:8
     container_name: doecerto_db
     restart: always
-    env_file:
-      - .env
-      - db.env
+    env_file: .env
     environment:
-      # Regra de Ouro: root não pode ser definido em MYSQL_USER
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER} # Use um nome como 'doecerto_user' no .env
+      MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
@@ -26,37 +22,29 @@ services:
       retries: 10
       start_period: 30s
 
-  # --- CACHE (REDIS) ---
   redis:
     image: redis:7-alpine
     container_name: doecerto_redis
     restart: always
-    command: redis-server --save 60 1 --maxmemory 256mb --maxmemory-policy allkeys-lru
     networks:
       - doecerto_network
     volumes:
       - redis_data:/data
 
-  # --- BACKEND (NESTJS) ---
   api:
     image: guilhermemth/doecerto-api:latest
     container_name: doecerto_api
     restart: always
     labels:
-      - "com.centurylinklabs.watchtower.enable=true" # Habilita o auto-update
-    env_file:
-      - .env
-      - api.env
+      - "com.centurylinklabs.watchtower.enable=true"
+    env_file: .env
     environment:
       - PORT=3501
       - DB_HOST=db
       - REDIS_HOST=redis
-      - DATABASE_URL=mysql://${DB_USER}:${DB_PASSWORD}@db:3306/${DB_NAME}
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_started
     networks: 
       - doecerto_network
     volumes:
@@ -66,24 +54,20 @@ services:
       - ./entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
 
-  # --- FRONTEND (REACT/NEXT) ---
   frontend:
     image: guilhermemth/doecerto-front:latest
     container_name: doecerto_frontend
     restart: always
     labels:
-      - "com.centurylinklabs.watchtower.enable=true" # Habilita o auto-update
-    env_file:
-      - .env
-    # Porta interna que o Caddy vai buscar
-    expose:
-      - "3535"
-    depends_on:
-      - api
+      - "com.centurylinklabs.watchtower.enable=true"
+    env_file: .env
+    environment:
+      - PORT=3535 # Força o Next.js/React a subir na porta que o Caddy espera
     networks:
       - doecerto_network
+    depends_on:
+      - api
 
-  # --- PROXY REVERSO (CADDY) ---
   caddy:
     image: caddy:2-alpine
     container_name: doecerto_proxy
@@ -101,16 +85,14 @@ services:
       - frontend
       - api
 
-  # --- AUTO UPDATE (WATCHTOWER) ---
   watchtower:
     image: containrrr/watchtower:latest
     container_name: doecerto_watchtower
     restart: always
     environment:
-      - DOCKER_API_VERSION=1.44 # Se der erro de socket, mude para 1.41
+      - DOCKER_API_VERSION=1.44
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    # --label-enable garante que ele só atualize API e Frontend
     command: --interval 30 --cleanup --label-enable
     networks:
       - doecerto_network
