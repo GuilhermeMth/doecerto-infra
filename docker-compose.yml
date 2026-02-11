@@ -35,18 +35,20 @@ services:
     image: guilhermemth/doecerto-api:latest
     container_name: doecerto_api
     restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+    user: root  # Adicione isso para evitar o erro EACCES
     env_file: .env
     environment:
       - PORT=3501
       - DB_HOST=db
       - REDIS_HOST=redis
+    # Adicione o comando abaixo para gerar o prisma toda vez que o container subir
+    command: sh -c "npx prisma generate && node dist/main"
     depends_on:
       db:
         condition: service_healthy
     networks: 
       - doecerto_network
+    # ... resto das configurações (volumes, etc)
     volumes:
       - uploads_profiles:/app/uploads/profiles
       - uploads_payments:/app/uploads/payment-proofs
