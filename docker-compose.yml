@@ -1,9 +1,11 @@
+name: doecerto
+
 services:
+  # --- BANCO DE DADOS ---
   db:
     image: mysql:8
     container_name: doecerto_db
     restart: always
-    # Em vez de env_file duplo, passamos a tradução aqui
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
@@ -20,36 +22,56 @@ services:
       retries: 10
       start_period: 30s
 
+  # --- CACHE ---
+  redis:
+    image: redis:7-alpine
+    container_name: doecerto_redis
+    restart: always
+    command: redis-server --save 60 1 --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - doecerto_network
+    volumes:
+      - redis_data:/data
+
+  # --- BACKEND ---
   api:
     image: guilhermemth/doecerto-api:latest
     container_name: doecerto_api
     restart: always
     env_file:
       - .env
-    # Adicionamos environment para garantir que as portas batam
     environment:
       - PORT=3501
+      - DB_HOST=db
+      - REDIS_HOST=redis
       - DATABASE_URL=mysql://${DB_USER}:${DB_PASSWORD}@db:3306/${DB_NAME}
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks: 
       - doecerto_network
     volumes:
       - uploads_profiles:/app/uploads/profiles
       - uploads_payments:/app/uploads/payment-proofs
+      - api_logs:/app/logs
       - ./docker/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
 
+  # --- FRONTEND ---
   frontend:
     image: guilhermemth/doecerto-front:latest
     container_name: doecerto_frontend
     restart: always
     env_file:
       - .env
+    depends_on:
+      - api
     networks:
       - doecerto_network
 
+  # --- PROXY REVERSO ---
   caddy:
     image: caddy:2-alpine
     container_name: doecerto_proxy
@@ -60,7 +82,6 @@ services:
     environment:
       - MY_DOMAIN=${MY_DOMAIN}
     volumes:
-      # Ajustado para a raiz, onde o SCP coloca o arquivo
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
@@ -69,3 +90,29 @@ services:
     depends_on:
       - frontend
       - api
+
+  # --- AUTO UPDATE ---
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: doecerto_watchtower
+    restart: always
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 30 --cleanup --label-enable
+    networks:
+      - doecerto_network
+
+networks:
+  doecerto_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+  uploads_profiles:
+  uploads_payments:
+  api_logs:

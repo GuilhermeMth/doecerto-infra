@@ -6,7 +6,6 @@ on:
 
 jobs:
   terraform:
-    # ... (mantenha seu job de terraform como está, ele parece correto)
     name: 'Terraform'
     runs-on: ubuntu-latest
     outputs:
@@ -15,17 +14,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+
       - name: Terraform Init e Apply
         run: |
           cd terraform
           terraform init
           terraform apply -auto-approve -var="ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}"
+
       - name: Get VM Outputs
         id: set-ip
         run: |
@@ -40,7 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # CORREÇÃO 1: Criar o arquivo explicitamente e verificar existência
+      # 1. Cria o .env com as variáveis da Secret e do Terraform
       - name: Create .env file
         run: |
           cat <<EOF > .env
@@ -48,9 +51,9 @@ jobs:
           MY_DOMAIN=${{ needs.terraform.outputs.vm_fqdn }}
           VM_IP=${{ needs.terraform.outputs.vm_ip }}
           EOF
-          echo "Conteúdo do .env criado (sem valores sensíveis):"
-          ls -la .env
+          echo "Arquivo .env gerado com sucesso."
 
+      # 2. Espera a VM e o Docker estarem prontos
       - name: Wait for Docker to be ready
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -58,27 +61,26 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            echo "Aguardando cloud-init..."
             cloud-init status --wait
-            for i in {1..20}; do
-              if docker info > /dev/null 2>&1; then exit 0; fi
+            echo "Verificando Docker..."
+            until docker info > /dev/null 2>&1; do 
               sudo systemctl start docker || true
-              sleep 15
+              sleep 5
             done
-            exit 1
 
-      # CORREÇÃO 2: SCP Ajustado
+      # 3. Copia apenas o necessário para a VM
       - name: Copy files to VM
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ needs.terraform.outputs.vm_ip }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Listamos os arquivos explicitamente. O "./" ajuda o SCP a achar na raiz.
           source: "docker-compose.yml,docker/,.env,Caddyfile"
           target: "/home/${{ secrets.VM_USER }}/app"
-          # strip_components: 0 garante que a pasta docker/ continue como docker/
           strip_components: 0
 
+      # 4. Executa o Docker Compose forçando o uso do .env
       - name: Executing Docker Compose
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -88,16 +90,16 @@ jobs:
           script: |
             cd /home/${{ secrets.VM_USER }}/app
             
-            # Verificação de segurança: O arquivo .env chegou?
-            if [ ! -f .env ]; then echo "ERRO: Arquivo .env não encontrado!"; exit 1; fi
+            if [ ! -f .env ]; then echo "ERRO: .env não encontrado!"; exit 1; fi
             
             chmod +x ./docker/entrypoint.sh
             
-            # Forçamos a parada e recriação para garantir que o novo .env seja lido
-            docker compose down --remove-orphans
-            docker compose pull
-            docker compose up -d
+            echo "Subindo containers..."
+            # --env-file .env garante que as variáveis não venham como 'blank'
+            docker compose --env-file .env down --remove-orphans
+            docker compose --env-file .env pull
+            docker compose --env-file .env up -d --force-recreate
             
-            echo "Aguardando inicialização (30s)..."
-            sleep 30
+            echo "Aguardando 20s para status final..."
+            sleep 20
             docker ps
