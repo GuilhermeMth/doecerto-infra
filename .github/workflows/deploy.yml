@@ -56,16 +56,20 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "Aguardando instalação do Docker..."
-            for i in {1..30}; do
+            echo "Aguardando cloud-init finalizar..."
+            # Espera o cloud-init liberar o sistema
+            cloud-init status --wait
+            
+            echo "Verificando Docker..."
+            for i in {1..20}; do
               if docker info > /dev/null 2>&1; then
                 echo "Docker está pronto!"
                 exit 0
               fi
-              echo "Tentativa $i: Docker ainda não responde. Aguardando 10s..."
-              sleep 10
+              echo "Tentativa $i: Docker ainda não responde. Tentando iniciar serviço..."
+              sudo systemctl start docker || true
+              sleep 15
             done
-            echo "Erro: Docker não ficou pronto a tempo."
             exit 1
 
       - name: Copy files to VM

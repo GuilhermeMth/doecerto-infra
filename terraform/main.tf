@@ -135,29 +135,37 @@ resource "azurerm_linux_virtual_machine" "vm" {
   }
 
   # --- AUTOMAÇÃO PÓS-CRIAÇÃO (Instalação do Docker) ---
+  # --- AUTOMAÇÃO PÓS-CRIAÇÃO (Instalação do Docker) ---
   custom_data = base64encode(<<-EOF
     #!/bin/bash
-    # Atualiza pacotes e instala dependências
-    apt-get update -y
-    apt-get install -y apt-transport-https ca-certificates curl software-properties-common netcat-openbsd
+    # Evita diálogos interativos durante a instalação
+    export DEBIAN_FRONTEND=noninteractive
 
-    # Adiciona chave GPG oficial do Docker
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    # 1. Atualiza e instala dependências básicas
+    apt-get update -y
+    apt-get install -y ca-certificates curl gnupg lsb-release netcat-openbsd
+
+    # 2. Configura o repositório oficial do Docker (Método moderno GPG)
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     
-    # Instala Docker Engine
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    # 3. Instala Docker e Docker Compose Plugin
     apt-get update -y
-    apt-get install -y docker-ce docker-ce-cli containerd.io
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-    # Instala Docker Compose V2 (plugin)
-    mkdir -p /usr/local/lib/docker/cli-plugins/
-    curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
-    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    # 4. Habilita e inicia o serviço
+    systemctl enable docker
+    systemctl start docker
 
-    # Configura permissões para o usuário padrão
+    # 5. Permissões para o usuário (Ajusta o socket para ser acessível imediatamente)
     usermod -aG docker ${var.admin_username}
-    
-    echo "Configuração inicial concluída com sucesso!" > /home/${var.admin_username}/install_log.txt
+    chmod 666 /var/run/docker.sock
+
+    echo "Docker instalado com sucesso em $(date)" > /home/${var.admin_username}/install_log.txt
   EOF
   )
 }
