@@ -1,32 +1,22 @@
 doecerto.eastus2.cloudapp.azure.com {
 
-    # 1. Roteamento para o Backend (NestJS)
-    # Remove o prefixo /api e joga para o container na 3501
+    # 1. API - Usando 'handle' em vez de 'handle_path' se o seu front já manda o /api
+    # Ou mantendo handle_path se você quer que a API ignore o prefixo.
     handle_path /api/* {
-        reverse_proxy api:3501
+        reverse_proxy doecerto_api:3501
     }
 
-    # 2. Roteamento para o Frontend
-    # Joga todo o resto para o container na 3535
+    # 2. FRONTEND
     handle {
-        reverse_proxy frontend:3535
+        reverse_proxy doecerto_frontend:3535
     }
 
-    # --- Configurações de Performance e Segurança ---
+    # --- Configurações Adicionais ---
     encode zstd gzip
     
-    header {
-        # Habilita HSTS
-        Strict-Transport-Security "max-age=31536000;"
-        # Proteção contra Clickjacking e Sniffing
-        X-Frame-Options "DENY"
-        X-Content-Type-Options "nosniff"
-        # Garante que o navegador saiba que o conteúdo é estritamente HTTPS
-        Content-Security-Policy "upgrade-insecure-requests"
-    }
-
-    # Logs de acesso (importante para ver quem está acessando na VM)
-    log {
-        output file /data/access.log
+    # ISSO AQUI VAI TE SALVAR: 
+    # Força o Caddy a não tentar servir arquivos estáticos do front se a rota for /api
+    @api {
+        path /api/*
     }
 }
