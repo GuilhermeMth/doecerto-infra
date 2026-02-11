@@ -3,11 +3,17 @@
 }
 
 doecerto.eastus2.cloudapp.azure.com {
-    handle_path /api/* {
+    # 1. Forçar a API a ter prioridade máxima
+    # Se começar com /api, vai obrigatoriamente para o container da API
+    handle /api/* {
+        uri strip_prefix /api
         reverse_proxy doecerto_api:3501
     }
 
-    handle {
+    # 2. Todo o resto vai para o Frontend
+    handle /* {
         reverse_proxy doecerto_frontend:3535
     }
+
+    encode zstd gzip
 }
