@@ -63,7 +63,7 @@ services:
       - uploads_profiles:/app/uploads/profiles
       - uploads_payments:/app/uploads/payment-proofs
       - api_logs:/app/logs
-      - ./docker/entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+      - ./entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
 
   # --- FRONTEND (REACT/NEXT) ---
