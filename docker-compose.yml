@@ -5,7 +5,6 @@ services:
     image: mysql:8
     restart: always
     environment:
-      # Use apenas estas duas para o root
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
     env_file:
@@ -15,7 +14,6 @@ services:
     networks:
       - doecerto_network
     healthcheck:
-      # Note que usamos 'root' explicitamente aqui
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
       interval: 10s
       timeout: 5s
@@ -46,7 +44,7 @@ services:
     ports:
       - "3501:3501"
     labels:
-      - com.centurylinklabs.watchtower.enable=true
+      - "com.centurylinklabs.watchtower.enable=true"
     volumes:
       - uploads_profiles:/app/uploads/profiles
       - uploads_payments:/app/uploads/payment-proofs
@@ -62,7 +60,8 @@ services:
     ports:
       - "3535:3535"
     labels:
-      - com.centurylinklabs.watchtower.enable=true
+      # ADICIONADO: Agora o Watchtower também monitora o front
+      - "com.centurylinklabs.watchtower.enable=true"
 
   caddy:
     image: caddy:latest
@@ -85,10 +84,12 @@ services:
     restart: always
     environment:
       - DOCKER_API_VERSION=1.44
+      # Opcional: Ativa logs mais detalhados para debug
+      - WATCHTOWER_DEBUG=true 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: > 
-      --interval 300
+      --interval 30
       --cleanup
       --label-enable
       
