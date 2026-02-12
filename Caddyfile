@@ -1,4 +1,6 @@
-# Updated Caddyfile configuration to restrict functionality to the real server
+{
+    email guilhermemfranca06@gmail.com
+}
 
 (doecerto_server) {
     handle /api/* {
@@ -22,7 +24,8 @@ doecerto.eastus2.cloudapp.azure.com {
     import doecerto_server
 }
 
-# Redirect HTTP to HTTPS
+# O Caddy já faz o redirecionamento HTTP -> HTTPS automaticamente, 
+# mas se quiser manter o bloco explícito:
 http://doecerto.eastus2.cloudapp.azure.com {
     redir https://doecerto.eastus2.cloudapp.azure.com{uri}
 }
