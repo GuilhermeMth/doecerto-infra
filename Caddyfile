@@ -5,16 +5,16 @@
 (doecerto_server) {
     handle /api/* {
         uri strip_prefix /api
-        reverse_proxy doecerto_api:3501
+        reverse_proxy api:3501  # Ajustado de doecerto_api para api
     }
 
     handle /apk/* {
         uri strip_prefix /apk
-        reverse_proxy doecerto_api:3501
+        reverse_proxy api:3501  # Ajustado de doecerto_api para api
     }
 
     handle /* {
-        reverse_proxy doecerto_frontend:3535
+        reverse_proxy frontend:3535  # Ajustado de doecerto_frontend para frontend
     }
 
     encode zstd gzip
@@ -22,10 +22,4 @@
 
 doecerto.eastus2.cloudapp.azure.com {
     import doecerto_server
-}
-
-# O Caddy já faz o redirecionamento HTTP -> HTTPS automaticamente, 
-# mas se quiser manter o bloco explícito:
-http://doecerto.eastus2.cloudapp.azure.com {
-    redir https://doecerto.eastus2.cloudapp.azure.com{uri}
 }
