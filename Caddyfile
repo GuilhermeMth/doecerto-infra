@@ -1,0 +1,28 @@
+# Updated Caddyfile configuration to restrict functionality to the real server
+
+(doecerto_server) {
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy doecerto_api:3501
+    }
+
+    handle /apk/* {
+        uri strip_prefix /apk
+        reverse_proxy doecerto_api:3501
+    }
+
+    handle /* {
+        reverse_proxy doecerto_frontend:3535
+    }
+
+    encode zstd gzip
+}
+
+doecerto.eastus2.cloudapp.azure.com {
+    import doecerto_server
+}
+
+# Redirect HTTP to HTTPS
+http://doecerto.eastus2.cloudapp.azure.com {
+    redir https://doecerto.eastus2.cloudapp.azure.com{uri}
+}
