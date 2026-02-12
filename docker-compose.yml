@@ -1,8 +1,9 @@
 name: doecerto
 
 services:
-  mysql:
+  db:
     image: mysql:8
+    container_name: doecerto_db
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
@@ -21,9 +22,9 @@ services:
       start_period: 30s
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
+    container_name: doecerto_redis
     restart: always
-    command: redis-server --save 60 1000 --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     networks:
       - doecerto_network
     volumes:
@@ -32,10 +33,14 @@ services:
   api:
     image: guilhermemth/doecerto-api:latest
     restart: always
+    user: root
+    # Usando uma string simples para o command para evitar erros de parsing do YAML
+    command: >
+      sh -c "npx prisma migrate deploy && npx prisma generate && node dist/main"
     env_file:
       - .env
     depends_on:
-      mysql:
+      db:
         condition: service_healthy
       redis:
         condition: service_started
@@ -53,6 +58,13 @@ services:
   frontend:
     image: guilhermemth/doecerto-front:latest
     restart: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    env_file: .env
+    environment:
+      - PORT=3535 # Força o Next.js/React a subir na porta que o Caddy espera
+    networks:
+      - doecerto_network
     depends_on:
       - api
     networks:
@@ -81,6 +93,7 @@ services:
 
   watchtower:
     image: containrrr/watchtower:latest
+    container_name: doecerto_watchtower
     restart: always
     environment:
       - DOCKER_API_VERSION=1.44
@@ -88,17 +101,18 @@ services:
       - WATCHTOWER_DEBUG=true 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: > 
-      --interval 30
-      --cleanup
-      --label-enable
-      
+    command: --interval 30 --cleanup --label-enable
+    networks:
+      - doecerto_network
+
 networks:
   doecerto_network:
 
 volumes:
   mysql_data:
   redis_data:
+  caddy_data:
+  caddy_config:
   uploads_profiles:
   uploads_payments:
   api_logs:
