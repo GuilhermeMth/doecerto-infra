@@ -1,7 +1,5 @@
 # DoeCerto - Infraestrutura
 
-> Documentação completa em um único arquivo
-
 ## 📋 Índice
 
 - [O Que Foi Feito](#o-que-foi-feito)
